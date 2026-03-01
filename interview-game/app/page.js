@@ -2,6 +2,9 @@
 import { useState } from "react";
 import './page.css';
 
+// ElevenLabs calls will be proxied through a server-side API so the key
+// remains secret.  The client component only fetches from /api/tts.
+
 export default function Home() {
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
@@ -58,6 +61,7 @@ export default function Home() {
     setResult(null);
     setPdfQuestions(null);
 
+    // Check if we've already completed 5 questions
     if (currentQuestionIndex >= 5) {
       setLoading(false);
       return;
@@ -116,6 +120,19 @@ export default function Home() {
         { role: "model", parts: [{ text: data.result }] }
       ]);
 
+      // save PDF questions if present AND not yet loaded
+      // if (data.pdfQuestions && questions.length === 1) {
+      //   try {
+      //     const cleaned = data.pdfQuestions.replace(/```json|```/g, "").trim();
+      //     const parsedQuestions = JSON.parse(cleaned);
+      //     if (Array.isArray(parsedQuestions)) {
+      //       // Replace the initial question with the PDF questions
+      //       setQuestions(parsedQuestions);
+      //     }
+      //   } catch (e) {
+      //     console.log("Could not parse PDF questions:", e);
+      //   }
+      // }
       if (data.pdfQuestions && questions.length === 1) {
         try {
           const cleanedPdf = (typeof data.pdfQuestions === "string" ? data.pdfQuestions.replace(/```json|```/g, "").trim() : JSON.stringify(data.pdfQuestions));
@@ -123,17 +140,22 @@ export default function Home() {
           if (Array.isArray(parsedPdf) && parsedPdf.length > 0) {
             setQuestions(parsedPdf);
             setPdfQuestions(parsedPdf);
+            // ensure "Tell me about yourself." is the first question and avoid duplicates
             const normalized = parsedPdf.map(q => (typeof q === "string" ? q.trim() : "")).filter(Boolean);
             const finalQuestions = ["Tell me about yourself.",...normalized.filter(q => q.toLowerCase() !== "tell me about yourself.")];
             setQuestions(finalQuestions);
             setPdfQuestions(finalQuestions);
+            // show the first PDF question
             setCurrentQuestionIndex(0);
+            // clear answer for next question
             setAnswer("");
+            // do not continue to handle follow_up from the evaluation response
             setLoading(false);
             return;
           }
         } catch (e) {
           console.log("Could not parse PDF questions:", e);
+          // fall through to handle normal response
         }
       }
 
@@ -144,6 +166,7 @@ export default function Home() {
         const parsed = JSON.parse(cleaned);
         setResult(parsed);
         
+        // Collect scores
         const newScores = [...allScores, {
           communication: parsed.communication,
           clarity: parsed.clarity,
@@ -153,6 +176,7 @@ export default function Home() {
         
         if (parsed.boss_reaction) await speak(parsed.boss_reaction);
         
+        // Move to next question (don't use follow_up, just increment)
         setCurrentQuestionIndex(idx => idx + 1);
         
         // clear the answer input for next question
@@ -175,6 +199,7 @@ export default function Home() {
 
   const currentQuestion = questions[currentQuestionIndex];
   
+  // Calculate summary when 5 questions are done
   const interviewComplete = currentQuestionIndex >= 5;
   let summaryData = null;
   let passed = false;
@@ -184,7 +209,7 @@ export default function Home() {
     const avgClarity = (allScores.reduce((sum, s) => sum + (s.clarity || 0), 0) / allScores.length).toFixed(1);
     const avgTechnicalDepth = (allScores.reduce((sum, s) => sum + (s.technical_depth || 0), 0) / allScores.length).toFixed(1);
     
-    passed = (parseFloat(avgCommunication) >= 8 && parseFloat(avgClarity) >= 8 && parseFloat(avgTechnicalDepth) >= 8);
+    passed = (parseFloat(avgCommunication) >= 7 && parseFloat(avgClarity) >= 7 && parseFloat(avgTechnicalDepth) >= 7);
     
     summaryData = {
       communication: avgCommunication,
@@ -248,8 +273,8 @@ export default function Home() {
               {summaryData.passed ? "PASSED ✓" : "FAILED ✗"}
             </h3>
             <p>{summaryData.passed 
-              ? "Congratulations! All scores are 8 or above."
-              : "At least one category scored below 8."}</p>
+              ? "Congratulations! All scores are 7 or above."
+              : "At least one category scored below 7."}</p>
           </div>
         </div>
       ) : result ? (
