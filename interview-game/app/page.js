@@ -252,7 +252,7 @@ export default function Home() {
           {pdfFile && <span> {pdfFile.name} selected</span>}
         </div>
         <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 8 }}>
-            {loading ? "Checking..." : "Submit"}
+            {loading ? "Thinking..." : "Submit"}
         </button>
       </div>
 
@@ -273,8 +273,8 @@ export default function Home() {
               {summaryData.passed ? "PASSED ✓" : "FAILED ✗"}
             </h3>
             <p>{summaryData.passed 
-              ? "Congratulations! All scores are 7 or above."
-              : "At least one category scored below 7."}</p>
+              ? "Congratulations! All scores are 7 or above." 
+              : "At least one category scored below 7. Good try!"}</p>
           </div>
         </div>
       ) : result ? (
