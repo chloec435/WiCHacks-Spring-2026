@@ -105,13 +105,14 @@ export default function Home() {
 
       <textarea rows={1} style={{ width: "20%" }} value={field} onChange={(e) => setField(e.target.value)} />
 
-      <p style={{ marginTop: "46vh", textAlign: "center", color: "black" }}>
+      <p style={{ marginTop: "46vh", textAlign: "center", color: "black", backgroundColor: "rgba(163, 217, 234, 0.8).8)" }}>
         <strong>Question: {question} </strong>
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
         <textarea rows={5} style={{ width: "80%" , marginTop: "1vh"}} value={answer} onChange={(e) => setAnswer(e.target.value)} />
       </div>
+      {/* rgba(244, 247, 190, 0.8) }*/}
 
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
         <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 8 }}>
