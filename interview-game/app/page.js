@@ -1,4 +1,3 @@
-// ...existing code...
 "use client";
 import { useState } from "react";
 import './page.css';
@@ -13,7 +12,17 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [field, setField] = useState("");
   const [history, setHistory] = useState([]);
-  const [currentQuestion, setCurrentQuestion] = useState("");
+  const [pdfFile, setPdfFile] = useState(null);
+  // hold base64 string for transmission
+  const [pdfBase64, setPdfBase64] = useState("");
+  const [pdfQuestions, setPdfQuestions] = useState(null);
+
+  // show only one question at a time
+  const [questions, setQuestions] = useState(["Tell me about yourself."]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  
+  // Track all scores for final summary
+  const [allScores, setAllScores] = useState([]);
 
   // helper that sends text to our server API and plays the returned audio
   async function speak(text) {
@@ -36,28 +45,66 @@ export default function Home() {
     }
   }
 
-  const question = "Tell me about yourself.";
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if(file && file.type == "application/pdf"){
+      setPdfFile(file);
+    }
+    else{
+      alert("Select a valid file format!")
+    }
+  };
 
   async function handleSubmit() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setPdfQuestions(null);
+
+    // Check if we've already completed 5 questions
+    if (currentQuestionIndex >= 5) {
+      setLoading(false);
+      return;
+    }
+
     try {
+      let pdfString;
+      if (pdfFile) {
+        // convert file to base64 for JSON transport
+        pdfString = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const b64 = reader.result.split(",")[1] || "";
+            resolve(b64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(pdfFile);
+        });
+        setPdfBase64(pdfString);
+      }
+
+      const currentQuestion = questions[currentQuestionIndex] || "Tell me about yourself.";
+
+      const body = {
+        history: [],
+        question: currentQuestion,
+        answer,
+        field,
+        questionCount: currentQuestionIndex,
+      };
+      if (pdfString) body.pdf = pdfString;
+
       const newHistory = [
         ...history,
-        { role: "user", parts: [{ text: answer }] }
+        { role: "user", parts: [{ text: answer }], question: currentQuestion }
       ];
+
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          history: newHistory,
-          question,
-          answer,
-          field,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
@@ -73,18 +120,73 @@ export default function Home() {
         { role: "model", parts: [{ text: data.result }] }
       ]);
 
+      // save PDF questions if present AND not yet loaded
+      // if (data.pdfQuestions && questions.length === 1) {
+      //   try {
+      //     const cleaned = data.pdfQuestions.replace(/```json|```/g, "").trim();
+      //     const parsedQuestions = JSON.parse(cleaned);
+      //     if (Array.isArray(parsedQuestions)) {
+      //       // Replace the initial question with the PDF questions
+      //       setQuestions(parsedQuestions);
+      //     }
+      //   } catch (e) {
+      //     console.log("Could not parse PDF questions:", e);
+      //   }
+      // }
+      if (data.pdfQuestions && questions.length === 1) {
+        try {
+          const cleanedPdf = (typeof data.pdfQuestions === "string" ? data.pdfQuestions.replace(/```json|```/g, "").trim() : JSON.stringify(data.pdfQuestions));
+          const parsedPdf = JSON.parse(cleanedPdf);
+          if (Array.isArray(parsedPdf) && parsedPdf.length > 0) {
+            setQuestions(parsedPdf);
+            setPdfQuestions(parsedPdf);
+            // ensure "Tell me about yourself." is the first question and avoid duplicates
+            const normalized = parsedPdf.map(q => (typeof q === "string" ? q.trim() : "")).filter(Boolean);
+            const finalQuestions = ["Tell me about yourself.",...normalized.filter(q => q.toLowerCase() !== "tell me about yourself.")];
+            setQuestions(finalQuestions);
+            setPdfQuestions(finalQuestions);
+            // show the first PDF question
+            setCurrentQuestionIndex(0);
+            // clear answer for next question
+            setAnswer("");
+            // do not continue to handle follow_up from the evaluation response
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          console.log("Could not parse PDF questions:", e);
+          // fall through to handle normal response
+        }
+      }
+
       const text = data.result || "";
       const cleaned = text.replace(/```json|```/g, "").trim();
 
       try {
         const parsed = JSON.parse(cleaned);
         setResult(parsed);
+        
+        // Collect scores
+        const newScores = [...allScores, {
+          communication: parsed.communication,
+          clarity: parsed.clarity,
+          technical_depth: parsed.technical_depth
+        }];
+        setAllScores(newScores);
+        
         if (parsed.boss_reaction) await speak(parsed.boss_reaction);
-        if (parsed.follow_up) await speak(parsed.follow_up);
+        
+        // Move to next question (don't use follow_up, just increment)
+        setCurrentQuestionIndex(idx => idx + 1);
+        
+        // clear the answer input for next question
+        setAnswer("");
+        
       } catch (e) {
         // If parsing fails, show raw text so you can inspect what the model returned
-        const fallback = { boss_reaction: cleaned, follow_up: cleaned, parsingError: e.message };
+        const fallback = { boss_reaction: cleaned, parsingError: e.message };
         setResult(fallback);
+        setAnswer("");
         await speak(cleaned);
       }
     } catch (e) {
@@ -93,6 +195,28 @@ export default function Home() {
       setLoading(false);
     }
 
+  }
+
+  const currentQuestion = questions[currentQuestionIndex];
+  
+  // Calculate summary when 5 questions are done
+  const interviewComplete = currentQuestionIndex >= 5;
+  let summaryData = null;
+  let passed = false;
+  
+  if (interviewComplete && allScores.length > 0) {
+    const avgCommunication = (allScores.reduce((sum, s) => sum + (s.communication || 0), 0) / allScores.length).toFixed(1);
+    const avgClarity = (allScores.reduce((sum, s) => sum + (s.clarity || 0), 0) / allScores.length).toFixed(1);
+    const avgTechnicalDepth = (allScores.reduce((sum, s) => sum + (s.technical_depth || 0), 0) / allScores.length).toFixed(1);
+    
+    passed = (parseFloat(avgCommunication) >= 8 && parseFloat(avgClarity) >= 8 && parseFloat(avgTechnicalDepth) >= 8);
+    
+    summaryData = {
+      communication: avgCommunication,
+      clarity: avgClarity,
+      technical_depth: avgTechnicalDepth,
+      passed
+    };
   }
 
   return (
@@ -105,8 +229,9 @@ export default function Home() {
 
       <textarea rows={1} style={{ width: "20%" }} value={field} onChange={(e) => setField(e.target.value)} />
 
-      <p style={{ marginTop: "46vh", textAlign: "center", color: "black", backgroundColor: "rgba(163, 217, 234, 0.8).8)" }}>
-        <strong>Question: {question} </strong>
+
+      <p style={{ marginTop: "46vh", textAlign: "center", color: "black", backgroundColor: "rgba(163, 217, 234, 0.8)" }}>
+        <strong>Question: {currentQuestion} </strong>
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
@@ -114,7 +239,18 @@ export default function Home() {
       </div>
       {/* rgba(244, 247, 190, 0.8) }*/}
 
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column" }}>
+        <div style={{ margin: "1rem 0" }}>
+          <label>
+            Upload PDF:&nbsp;
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange}
+            />
+          </label>
+          {pdfFile && <span> {pdfFile.name} selected</span>}
+        </div>
         <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 8 }}>
             {loading ? "Checking..." : "Submit"}
         </button>
@@ -122,7 +258,26 @@ export default function Home() {
 
       {error && <div style={{ color: "red", marginTop: 12 }}>Error: {error}</div>}
 
-      {result && (
+      {interviewComplete && summaryData ? (
+        <div>
+          <div style={{ marginTop: 20, position: "absolute", top: 130, bottom: 290, left: 180, right: 620, backgroundColor: "rgba(255,255,255,0.8)", 
+          padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
+            <h3 style={{ marginTop: 0 }}>Overall Scores</h3>
+            <p>Communication: {summaryData.communication}/10</p>
+            <p>Clarity: {summaryData.clarity}/10</p>
+            <p>Technical Depth: {summaryData.technical_depth}/10</p>
+          </div>
+          <div style={{ marginTop: 20, position: "absolute", top: 10, bottom: 250, left: 600, right: 20, backgroundColor: "rgba(255,255,255,0.8)", 
+          padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
+            <h3 style={{ marginTop: 0, color: summaryData.passed ? "green" : "red", fontSize: "20px" }}>
+              {summaryData.passed ? "PASSED ✓" : "FAILED ✗"}
+            </h3>
+            <p>{summaryData.passed 
+              ? "Congratulations! All scores are 8 or above."
+              : "At least one category scored below 8."}</p>
+          </div>
+        </div>
+      ) : result ? (
         <div>
           <div style={{ marginTop: 20, position: "absolute", top: 130, bottom: 310, left: 180, right: 620, backgroundColor: "rgba(255,255,255,0.8)", 
           padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
@@ -136,8 +291,7 @@ export default function Home() {
             {result.parsingError && <small style={{ color: "orange" }}>Parsing error: {result.parsingError}</small>}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
-  );
+  )
 }
-// ...existing code...
