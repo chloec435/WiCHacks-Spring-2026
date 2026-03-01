@@ -1,6 +1,7 @@
 // ...existing code...
 "use client";
 import { useState } from "react";
+import './page.css';
 
 // ElevenLabs calls will be proxied through a server-side API so the key
 // remains secret.  The client component only fetches from /api/tts.
@@ -82,7 +83,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{ padding: 40 }} className="app-background">
+    <div className="app-background">
       <h1>Interview Boss</h1>
 
       <p>
