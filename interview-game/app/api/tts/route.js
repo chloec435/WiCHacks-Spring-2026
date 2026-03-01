@@ -19,7 +19,7 @@ export async function POST(req) {
       );
     }
 
-    const voiceId = "aIu5oHglU5AHNc2x0AZu"; // <-- replace this
+    const voiceId = "0fbdXLXuDBZXm2IHek4L"; // <-- replace this
 
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,

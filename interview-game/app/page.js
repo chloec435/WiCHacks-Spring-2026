@@ -12,6 +12,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [field, setField] = useState("");
+  const [history, setHistory] = useState([]);
+  const [currentQuestion, setCurrentQuestion] = useState("");
 
   // helper that sends text to our server API and plays the returned audio
   async function speak(text) {
@@ -41,12 +43,17 @@ export default function Home() {
     setError(null);
     setResult(null);
     try {
+      const newHistory = [
+        ...history,
+        { role: "user", parts: [{ text: answer }] }
+      ];
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          history: newHistory,
           question,
           answer,
           field,
@@ -60,6 +67,11 @@ export default function Home() {
         setLoading(false);
         return;
       }
+      
+      setHistory([
+        ...newHistory,
+        { role: "model", parts: [{ text: data.result }] }
+      ]);
 
       const text = data.result || "";
       const cleaned = text.replace(/```json|```/g, "").trim();
@@ -120,7 +132,6 @@ export default function Home() {
           <div style={{ marginTop: 20, position: "absolute", top: 10, bottom: 250, left: 600, right: 20, backgroundColor: "rgba(255,255,255,0.8)", 
           padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
             <p>{result.boss_reaction ?? result.bossReaction ?? result.message ?? "No reaction"}</p>
-            <p>{result.follow_up ?? result.followUp ?? result.message ?? "No follow up"}</p>
             {result.parsingError && <small style={{ color: "orange" }}>Parsing error: {result.parsingError}</small>}
           </div>
         </div>

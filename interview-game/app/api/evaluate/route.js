@@ -9,33 +9,60 @@ export async function POST(req) {
       );
     }
 
-    const { question, answer, field } = await req.json();
+    const { history, question, answer, field } = await req.json();
 
     const prompt = `
-You are an ${field} interview boss in real life.
+    You are an ${field} interview boss in real life.
+    If needed, ask them to elaborate. If they already have a detailed response, generate a follow-up question.
 
-Question:
-${question}
+    If the answer is non-sensical or shows a lack of understanding, the boss will react negatively. If the answer is good, the boss will react positively. The boss's reaction should be concise.
 
-Player Answer:
-${answer}
+    Return ONLY valid JSON:
+    {
+      "communication": number,
+      "clarity": number,
+      "technical_depth": number,
+      "boss_reaction": "string"
+    }`;
 
-Score from 1-10:
-- communication
-- clarity
-- technical_depth
+    const contents = [
+      {
+        role: "user",
+        parts: [{ text: prompt }],
+      },
+      ...history,
+      {
+        role: "user",
+        parts: [{ text: `Question: ${question}\nPlayer Answer: ${answer}` }],
+      }
+    ];
 
-If needed, ask them to elaborate. If they already have a detailed response, generate a follow-up question.
+//     const prompt = `
+// You are an ${field} interview boss in real life.
 
-Return ONLY valid JSON:
-{
-  "communication": number,
-  "clarity": number,
-  "technical_depth": number,
-  "boss_reaction": "string",
-  "follow_up": "string"
-}
-`;
+// Question:
+// ${question}
+
+// Player Answer:
+// ${answer}
+
+// Score from 1-10:
+// - communication
+// - clarity
+// - technical_depth
+
+// If needed, ask them to elaborate. If they already have a detailed response, generate a follow-up question.
+
+// If the answer is non-sensical or shows a lack of understanding, the boss will react negatively. If the answer is good, the boss will react positively. The boss's reaction should be concise.
+
+// Return ONLY valid JSON:
+// {
+//   "communication": number,
+//   "clarity": number,
+//   "technical_depth": number,
+//   "boss_reaction": "string"
+// }
+// `;
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -43,7 +70,7 @@ Return ONLY valid JSON:
 
     const response = await ai.models.generateContent({
       model,
-      contents: prompt,
+      contents,
     });
 
     const text = response?.text ?? JSON.stringify(response);
