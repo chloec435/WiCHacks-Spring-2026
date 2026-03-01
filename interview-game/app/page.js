@@ -82,7 +82,7 @@ export default function Home() {
   }
 
   return (
-    <div style={{ padding: 40 }}>
+    <div style={{ padding: 40 }} className="app-background">
       <h1>Interview Boss</h1>
 
       <p>

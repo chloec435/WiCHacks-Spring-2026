@@ -1,0 +1,6 @@
+.app-background {
+  background-image: url('/images/blue_boss.png'); /* Reference from the public folder root */
+  background-size: cover;
+  background-repeat: no-repeat;
+  height: 100vh;
+}
