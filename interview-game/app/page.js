@@ -68,6 +68,7 @@ export default function Home() {
         const parsed = JSON.parse(cleaned);
         setResult(parsed);
         if (parsed.boss_reaction) await speak(parsed.boss_reaction);
+        if (parsed.follow_up) await speak(parsed.follow_up);
       } catch (e) {
         // If parsing fails, show raw text so you can inspect what the model returned
         const fallback = { boss_reaction: cleaned, follow_up: cleaned, parsingError: e.message };
@@ -92,27 +93,36 @@ export default function Home() {
 
       <textarea rows={1} style={{ width: "20%" }} value={field} onChange={(e) => setField(e.target.value)} />
 
-      <p>
-        <strong>Question:</strong> {question}
+      <p style={{ marginTop: "46vh", textAlign: "center", color: "black" }}>
+        <strong>Question: {question} </strong>
       </p>
 
-      <textarea rows={4} style={{ width: "100%" }} value={answer} onChange={(e) => setAnswer(e.target.value)} />
-      
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <textarea rows={5} style={{ width: "80%" , marginTop: "1vh"}} value={answer} onChange={(e) => setAnswer(e.target.value)} />
+      </div>
 
-      <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 8 }}>
-        {loading ? "Checking..." : "Submit"}
-      </button>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
+        <button onClick={handleSubmit} disabled={loading} style={{ marginTop: 8 }}>
+            {loading ? "Checking..." : "Submit"}
+        </button>
+      </div>
 
       {error && <div style={{ color: "red", marginTop: 12 }}>Error: {error}</div>}
 
       {result && (
-        <div style={{ marginTop: 20 }}>
-          <p>Communication: {result.communication ?? "n/a"}</p>
-          <p>Clarity: {result.clarity ?? "n/a"}</p>
-          <p>Technical Depth: {result.technical_depth ?? "n/a"}</p>
-          <p>{result.boss_reaction ?? result.bossReaction ?? result.message ?? "No reaction"}</p>
-          <p>{result.follow_up ?? result.followUp ?? result.message ?? "No follow up"}</p>
-          {result.parsingError && <small style={{ color: "orange" }}>Parsing error: {result.parsingError}</small>}
+        <div>
+          <div style={{ marginTop: 20, position: "absolute", top: 130, bottom: 310, left: 180, right: 620, backgroundColor: "rgba(255,255,255,0.8)", 
+          padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
+            <p>Communication: {result.communication ?? "n/a"}</p>
+            <p>Clarity: {result.clarity ?? "n/a"}</p>
+            <p>Technical Depth: {result.technical_depth ?? "n/a"}</p>
+          </div>
+          <div style={{ marginTop: 20, position: "absolute", top: 10, bottom: 250, left: 600, right: 20, backgroundColor: "rgba(255,255,255,0.8)", 
+          padding: 12, borderRadius: 8, color: "black", fontSize: "14px"}}>
+            <p>{result.boss_reaction ?? result.bossReaction ?? result.message ?? "No reaction"}</p>
+            <p>{result.follow_up ?? result.followUp ?? result.message ?? "No follow up"}</p>
+            {result.parsingError && <small style={{ color: "orange" }}>Parsing error: {result.parsingError}</small>}
+          </div>
         </div>
       )}
     </div>
